@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+
+  payment-db:
+    image: postgres
+    container_name: pix-payment-db
+    environment:
+      POSTGRES_DB: pix-payment-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
