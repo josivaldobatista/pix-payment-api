@@ -6,7 +6,7 @@ services:
     image: postgres
     container_name: pix-payment-db
     environment:
-      POSTGRES_DB: pix-payment-db
+      POSTGRES_DB: pix_payment_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
