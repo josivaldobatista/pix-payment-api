@@ -31,33 +31,51 @@ public class CreatePixPaymentUseCaseImpl implements CreatePixPaymentUseCase {
     @Transactional
     public PaymentResponse execute(CreatePaymentRequest request) {
 
-        // 1. Parse do payload EMV completo
         Map<String, EmvField> fields = parser.parse(request.qrCodePayload());
 
-        // 2. Extração do valor (Tag 54) - opcional no Pix
-        BigDecimal amount = null;
+        BigDecimal amount = extractAmount(fields);
+
+        String txid = extractTxid(fields);
+
+        ensureNotAlreadyPaid(txid);
+
+        PixPaymentEntity saved = savePayment(txid, amount);
+
+        return toResponse(saved);
+    }
+
+    private BigDecimal extractAmount(Map<String, EmvField> fields) {
         EmvField amountField = fields.get("54");
-        if (amountField != null && !amountField.value().isBlank()) {
-            amount = new BigDecimal(amountField.value());
+
+        if (amountField == null || amountField.value().isBlank()) {
+            return null;
         }
 
-        // 3. Extração obrigatória do TXID (Tag 62 -> Sub-tag 05)
-        EmvField additionalDataField = fields.get("62");
+        return new BigDecimal(amountField.value());
+    }
 
-        if (additionalDataField == null || additionalDataField.value().isBlank()) {
-            throw new InvalidQrCodeException("QR Code inválido: campo Additional Data (62) ausente");
+    private String extractTxid(Map<String, EmvField> fields) {
+        EmvField additionalData = fields.get("62");
+
+        if (additionalData == null || additionalData.value().isBlank()) {
+            throw new InvalidQrCodeException(
+                    "QR Code inválido: campo Additional Data (62) ausente"
+            );
         }
 
-        Map<String, EmvField> subFields62 = parser.parse(additionalDataField.value());
-        EmvField txidField = subFields62.get("05");
+        Map<String, EmvField> subFields = parser.parse(additionalData.value());
+        EmvField txidField = subFields.get("05");
 
         if (txidField == null || txidField.value().isBlank()) {
-            throw new InvalidQrCodeException("QR Code inválido: TXID (62.05) não encontrado");
+            throw new InvalidQrCodeException(
+                    "QR Code inválido: TXID (62.05) não encontrado"
+            );
         }
 
-        String txid = txidField.value();
+        return txidField.value();
+    }
 
-        // 4. Regra de negócio: não permitir pagamento duplicado já confirmado
+    private void ensureNotAlreadyPaid(String txid) {
         boolean alreadyPaid =
                 pixPaymentJpaRepository.existsByTxidAndStatus(txid, PaymentStatus.PAID);
 
@@ -66,8 +84,9 @@ public class CreatePixPaymentUseCaseImpl implements CreatePixPaymentUseCase {
                     "Já existe um pagamento confirmado para este TXID"
             );
         }
+    }
 
-        // 5. Persistência do pagamento
+    private PixPaymentEntity savePayment(String txid, BigDecimal amount) {
         PixPaymentEntity entity = PixPaymentEntity.builder()
                 .id(UUID.randomUUID().toString())
                 .txid(txid)
@@ -76,15 +95,17 @@ public class CreatePixPaymentUseCaseImpl implements CreatePixPaymentUseCase {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        PixPaymentEntity saved = pixPaymentJpaRepository.save(entity);
+        return pixPaymentJpaRepository.save(entity);
+    }
 
-        // 6. Resposta da API
+    private PaymentResponse toResponse(PixPaymentEntity entity) {
         return new PaymentResponse(
-                saved.getId(),
-                saved.getTxid(),
-                saved.getAmount(),
-                saved.getStatus(),
-                saved.getCreatedAt()
+                entity.getId(),
+                entity.getTxid(),
+                entity.getAmount(),
+                entity.getStatus(),
+                entity.getCreatedAt()
         );
     }
+
 }
