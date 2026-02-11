@@ -31,4 +31,7 @@ public class PixPaymentEntity {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    private LocalDateTime paidAt;
+
 }
