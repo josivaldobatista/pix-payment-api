@@ -28,4 +28,21 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(err);
     }
+
+    @ExceptionHandler(PaymentAlreadyPaidException.class)
+    public ResponseEntity<StandardError> paymentAlreadyPaidException(
+            PaymentAlreadyPaidException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        StandardError err = new StandardError(
+                Instant.now(),
+                status.value(),
+                "Pagamento em duplicidade",
+                e.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(status).body(err);
+    }
 }

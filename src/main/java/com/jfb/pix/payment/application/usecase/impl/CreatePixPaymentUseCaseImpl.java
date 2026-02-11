@@ -4,6 +4,7 @@ import com.jfb.pix.payment.api.dto.CreatePaymentRequest;
 import com.jfb.pix.payment.api.dto.PaymentResponse;
 import com.jfb.pix.payment.application.usecase.CreatePixPaymentUseCase;
 import com.jfb.pix.payment.domain.model.PaymentStatus;
+import com.jfb.pix.payment.exception.PaymentAlreadyPaidException;
 import com.jfb.pix.payment.infrastructure.persistence.entity.PixPaymentEntity;
 import com.jfb.pix.payment.infrastructure.persistence.repository.PixPaymentJpaRepository;
 import com.jfb.pix.payment.infrastructure.qrcode.emv.EmvField;
@@ -53,6 +54,12 @@ public class CreatePixPaymentUseCaseImpl implements CreatePixPaymentUseCase {
             if (txidField != null && !txidField.value().isBlank()) {
                 txid = txidField.value();
             }
+        }
+
+        boolean existsTxidAndStatus = pixPaymentJpaRepository.existsByTxidAndStatus(txid, PaymentStatus.PAID);
+
+        if (existsTxidAndStatus) {
+            throw new PaymentAlreadyPaidException("Já existe um pagamento confirmado para este TXID");
         }
 
         // 4. Persistência do pagamento
